@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ergo.fullname" . }}
+  labels:
+    {{- include "ergo.labels" . | nindent 4 }}
+spec:
+  # Ergo uses ReadWriteOnce PVC and database locking, so only 1 replica is supported
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "ergo.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ergo.selectorLabels" . | nindent 8 }}
+    spec:
+      # Share process namespace to allow config-reloader to signal ergo
+      shareProcessNamespace: true
+      containers:
+      - name: ergo
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: ircs
+          containerPort: 6697
+          protocol: TCP
+        - name: websocket
+          containerPort: 443
+          protocol: TCP
+        volumeMounts:
+        - name: config
+          mountPath: /ircd
+          readOnly: true
+        {{- if .Values.certificate.enabled }}
+        - name: tls
+          mountPath: /ircd/tls
+          readOnly: true
+        {{- end }}
+        - name: db
+          mountPath: /ircd/db
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+      # Config reloader watches for config/cert changes and sends SIGHUP to ergo
+      - name: config-reloader
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["/bin/sh"]
+        args:
+          - "-c"
+          - |
+            echo "Watching /ircd/ircd.yaml, /ircd/ergo.motd and /ircd/tls";
+            inotifyd - /ircd/ircd.yaml:wMymndox /ircd/ergo.motd:wMymndox /ircd/tls:wMymndox | while read -r notifies ; do
+              echo "$notifies";
+              echo "notify received, sending SIGHUP";
+              pkill -HUP ergo;
+            done
+            echo "Exiting.";
+        volumeMounts:
+        - name: config
+          mountPath: /ircd
+          readOnly: true
+        {{- if .Values.certificate.enabled }}
+        - name: tls
+          mountPath: /ircd/tls
+          readOnly: true
+        {{- end }}
+      volumes:
+      - name: config
+        configMap:
+          name: {{ include "ergo.fullname" . }}-config
+      {{- if .Values.certificate.enabled }}
+      - name: tls
+        secret:
+          secretName: {{ .Values.certificate.secretName }}
+      {{- end }}
+      - name: db
+        {{- if .Values.persistence.enabled }}
+        persistentVolumeClaim:
+          claimName: {{ include "ergo.fullname" . }}-db
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
