@@ -13,7 +13,7 @@ A Helm chart for deploying [Ergo](https://ergo.chat/) IRC server on Kubernetes.
 ### Install from OCI registry
 
 ```bash
-helm install my-ergo oci://ghcr.io/geertjohan/ergo --version 0.1.0
+helm install my-ergo oci://ghcr.io/geertjohan/ergo
 ```
 
 ### Install from local chart
@@ -55,7 +55,7 @@ ergo:
 Install with your values:
 
 ```bash
-helm install my-ergo oci://ghcr.io/geertjohan/ergo --version 0.1.0 -f values.yaml
+helm install my-ergo oci://ghcr.io/geertjohan/ergo -f values.yaml
 ```
 
 ### Key Configuration Values
@@ -121,7 +121,7 @@ The deployment includes:
 Configuration changes can be applied without restarting the pod. The config-reloader sidecar will automatically send a SIGHUP signal to Ergo when configuration files or certificates change:
 
 ```bash
-helm upgrade my-ergo oci://ghcr.io/geertjohan/ergo --version 0.1.0 -f values.yaml
+helm upgrade my-ergo oci://ghcr.io/geertjohan/ergo -f values.yaml
 ```
 
 ## Uninstalling
